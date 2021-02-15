@@ -50,7 +50,7 @@ online_em_frequency = 1
 online_em_stepsize = 0.05
 
 # Indicator of using EM
-use_em = True
+use_em = False
 ############################################################################
 
 exponential_family_args = None
@@ -122,6 +122,9 @@ print(einet)
 train_N = train_x.shape[0]
 valid_N = valid_x.shape[0]
 test_N = test_x.shape[0]
+# SGD hyperparameters
+learning_rate = 1e-3
+optimizer = torch.optim.Adam(einet.parameters(), lr=learning_rate)
 
 for epoch_count in range(num_epochs):
 
@@ -141,17 +144,39 @@ for epoch_count in range(num_epochs):
     idx_batches = torch.randperm(train_N, device=device).split(batch_size)
 
     total_ll = 0.0
-    for idx in idx_batches:
-        batch_x = train_x[idx, :]
-        outputs = einet.forward(batch_x)
-        ll_sample = EinsumNetwork.log_likelihoods(outputs)
-        log_likelihood = ll_sample.sum()
-        log_likelihood.backward()
+    if use_em:
+        # use EM
+        for idx in idx_batches:
+            batch_x = train_x[idx, :]
+            outputs = einet.forward(batch_x)
+            ll_sample = EinsumNetwork.log_likelihoods(outputs)
+            log_likelihood = ll_sample.sum()
+            log_likelihood.backward()
 
-        einet.em_process_batch()
-        total_ll += log_likelihood.detach().item()
+            einet.em_process_batch()
+            total_ll += log_likelihood.detach().item()
 
-    einet.em_update()
+        einet.em_update()
+
+    else:
+        # use SGD
+        for idx in idx_batches:
+            optimizer.zero_grad()
+
+            batch_x = train_x[idx, :]
+            outputs = einet.forward(batch_x)
+            ll_sample = EinsumNetwork.log_likelihoods(outputs)
+            log_likelihood = ll_sample.sum()
+
+            loss = -log_likelihood
+            loss.backward()
+            optimizer.step()
+
+
+
+
+
+
 
 if fashion_mnist:
     model_dir = '../models/einet/demo_fashion_mnist/'
@@ -226,30 +251,36 @@ train_ll_before = EinsumNetwork.eval_loglikelihood_batched(einet, train_x, batch
 valid_ll_before = EinsumNetwork.eval_loglikelihood_batched(einet, valid_x, batch_size=batch_size)
 test_ll_before = EinsumNetwork.eval_loglikelihood_batched(einet, test_x, batch_size=batch_size)
 
-# save model
-graph_file = os.path.join(model_dir, "einet.pc")
-Graph.write_gpickle(graph, graph_file)
-print("Saved PC graph to {}".format(graph_file))
-model_file = os.path.join(model_dir, "einet.mdl")
-torch.save(einet, model_file)
-print("Saved model to {}".format(model_file))
 
-del einet
 
-# reload model
-einet = torch.load(model_file)
-print("Loaded model from {}".format(model_file))
 
-# evaluate log-likelihoods on re-loaded model
-train_ll = EinsumNetwork.eval_loglikelihood_batched(einet, train_x, batch_size=batch_size)
-valid_ll = EinsumNetwork.eval_loglikelihood_batched(einet, valid_x, batch_size=batch_size)
-test_ll = EinsumNetwork.eval_loglikelihood_batched(einet, test_x, batch_size=batch_size)
-print()
-print("Log-likelihoods before saving --- train LL {}   valid LL {}   test LL {}".format(
-        train_ll / train_N,
-        valid_ll / valid_N,
-        test_ll / test_N))
-print("Log-likelihoods after saving  --- train LL {}   valid LL {}   test LL {}".format(
-        train_ll / train_N,
-        valid_ll / valid_N,
-        test_ll / test_N))
+# Below will not be executed at present
+
+
+# # save model
+# graph_file = os.path.join(model_dir, "einet.pc")
+# Graph.write_gpickle(graph, graph_file)
+# print("Saved PC graph to {}".format(graph_file))
+# model_file = os.path.join(model_dir, "einet.mdl")
+# torch.save(einet, model_file)
+# print("Saved model to {}".format(model_file))
+#
+# del einet
+#
+# # reload model
+# einet = torch.load(model_file)
+# print("Loaded model from {}".format(model_file))
+#
+# # evaluate log-likelihoods on re-loaded model
+# train_ll = EinsumNetwork.eval_loglikelihood_batched(einet, train_x, batch_size=batch_size)
+# valid_ll = EinsumNetwork.eval_loglikelihood_batched(einet, valid_x, batch_size=batch_size)
+# test_ll = EinsumNetwork.eval_loglikelihood_batched(einet, test_x, batch_size=batch_size)
+# print()
+# print("Log-likelihoods before saving --- train LL {}   valid LL {}   test LL {}".format(
+#         train_ll / train_N,
+#         valid_ll / valid_N,
+#         test_ll / test_N))
+# print("Log-likelihoods after saving  --- train LL {}   valid LL {}   test LL {}".format(
+#         train_ll / train_N,
+#         valid_ll / valid_N,
+#         test_ll / test_N))
