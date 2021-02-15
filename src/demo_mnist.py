@@ -48,6 +48,9 @@ num_epochs = 5
 batch_size = 100
 online_em_frequency = 1
 online_em_stepsize = 0.05
+
+# Indicator of using EM
+use_em = True
 ############################################################################
 
 exponential_family_args = None
@@ -104,6 +107,7 @@ args = EinsumNetwork.Args(
         num_input_distributions=K,
         exponential_family=exponential_family,
         exponential_family_args=exponential_family_args,
+        use_em=use_em,
         online_em_frequency=online_em_frequency,
         online_em_stepsize=online_em_stepsize)
 
